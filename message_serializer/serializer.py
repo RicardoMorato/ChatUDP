@@ -7,7 +7,13 @@ class MessageSerializer:
         self.chunk_size = chunk_size
 
     def parse_file_into_message_stream(self, file_path: str = ""):
-        with open(file_path, "r", encoding="utf-8") as file:
-            content = file.read()
+        with open(file_path, "rb") as file:
+            while True:
+                content = file.read(self.chunk_size)
 
-            return content
+                if not content:
+                    break
+
+                text = content.decode(encoding="utf-8")
+
+                yield text
