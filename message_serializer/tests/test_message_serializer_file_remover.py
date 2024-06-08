@@ -22,12 +22,19 @@ class TestSerializerFileRemover:
         if os.path.isfile(file_path):
             os.remove(file_path)
 
-    def test_removes_file_with_correct_file_path(self, mocker):
-        os_remove_mock = mocker.patch("os.remove")
+    @pytest.fixture
+    def os_remove_mock(self, mocker):
+        return mocker.patch("os.remove")
 
+    @pytest.fixture
+    def os_is_file_mock(self, mocker):
+        return mocker.patch("os.path.isfile")
+
+    def test_removes_file_with_correct_file_path(self, os_is_file_mock, os_remove_mock):
         message_serializer = MessageSerializer()
         message_serializer.remove_file(file_name=DUMMY_FILE_NAME)
 
+        os_is_file_mock.assert_called_once()
         os_remove_mock.assert_called_once_with(
             f"message_serializer/files/{DUMMY_FILE_NAME}"
         )
