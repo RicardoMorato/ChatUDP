@@ -11,6 +11,6 @@ class TestSerializerFileBuilder:
         message_serializer.build_messages_file(file_name=DUMMY_FILE_NAME)
 
         open_mock.assert_called_once_with(
-            f"/message_serializer/files/{DUMMY_FILE_NAME}", "a"
+            f"message_serializer/files/{DUMMY_FILE_NAME}", "a"
         )
 
