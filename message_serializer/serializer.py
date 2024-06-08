@@ -24,4 +24,6 @@ class MessageSerializer:
         file_path = os.path.join(self.files_dir, file_name)
 
         with open(file_path, "a") as file:
-            pass
+            file.write(message)
+
+        return file_path
