@@ -27,3 +27,9 @@ class MessageSerializer:
             file.write(message)
 
         return file_path
+
+    def remove_file(self, file_name: str = ""):
+        file_path = os.path.join(self.files_dir, file_name)
+
+        if os.path.isfile(file_path):
+            os.remove(file_path)
