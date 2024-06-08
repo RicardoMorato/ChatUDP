@@ -8,4 +8,6 @@ class MessageSerializer:
 
     def parse_file_into_message_stream(self, file_path: str = ""):
         with open(file_path, "r", encoding="utf-8") as file:
-            pass
+            content = file.read()
+
+            return content
