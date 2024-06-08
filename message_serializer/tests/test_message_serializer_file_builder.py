@@ -39,3 +39,31 @@ class TestSerializerFileBuilder:
             content = test_file.read()
 
             assert content == example_message
+
+    def test_adds_multiple_messages_to_same_file(self):
+        example_messages = [
+            "THIS",
+            " IS",
+            " AN",
+            " EXAMPLE",
+            " OF",
+            " MESSAGE",
+            " STREAMS",
+        ]
+
+        # expected_output will read as "THIS IS AN EXAMPLE OF MESSAGE STREAMS"
+        expected_output = "".join(example_messages)
+
+        message_serializer = MessageSerializer()
+
+        for message in example_messages:
+            file_path = message_serializer.build_messages_file(
+                file_name=DUMMY_FILE_NAME, message=message
+            )
+
+        assert file_path is not None
+
+        with open(file_path, "r", encoding="utf-8") as test_file:
+            content = test_file.read()
+
+            assert content == expected_output
