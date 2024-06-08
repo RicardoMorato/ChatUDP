@@ -1,5 +1,3 @@
-import pytest
-
 from message_serializer.serializer import MessageSerializer
 
 DUMMY_FILE_PATH = "message_serializer/tests/fixtures/dummy-file.txt"
@@ -9,7 +7,25 @@ AGORA TIVEMOS UMA QUEBRA DE LINHA E UM  TAB.
 
 MAIS QUEBRAS DE LINHA E O FINAL DA MENSAGEM.
 """
-DUMMY_FILE_FIRST_CHUNK_SIZE_10 = "ESSA É AP"  # O acento agudo toma 1 byte
+DUMMY_FILE_CONTENT_CHUNK_SIZE_10 = [
+    "ESSA É AP",
+    "ENAS UMA M",
+    "ENSAGEM DE",
+    " EXEMPLO, ",
+    "ESTAMOS UT",
+    "ILIZANDO U",
+    "TF-8 E AFI",
+    "NS.\n\nAGORA",
+    " TIVEMOS U",
+    "MA QUEBRA ",
+    "DE LINHA E",
+    " UM  TAB.\n",
+    "\nMAIS QUEB",
+    "RAS DE LIN",
+    "HA E O FIN",
+    "AL DA MENS",
+    "AGEM.\n",
+]
 
 
 class TestSerializerFileParser:
@@ -28,13 +44,13 @@ class TestSerializerFileParser:
 
         message_serializer = MessageSerializer(chunk_size=chunk_size)
 
-        chunks = list(
-            message_serializer.parse_file_into_message_stream(file_path=DUMMY_FILE_PATH)
+        chunks = message_serializer.parse_file_into_message_stream(
+            file_path=DUMMY_FILE_PATH
         )
 
-        first_message = chunks[0]
-        assert first_message == DUMMY_FILE_FIRST_CHUNK_SIZE_10
+        for index, chunk in enumerate(chunks):
+            # Verifica se os chunks realmente trazem o output esperado
+            assert chunk == DUMMY_FILE_CONTENT_CHUNK_SIZE_10[index]
 
-        # Verifica se todos os chunks respeitam o threshold
-        for chunk in chunks:
+            # Verifica se todos os chunks respeitam o threshold
             assert len(chunk) <= chunk_size
