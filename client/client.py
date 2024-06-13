@@ -3,36 +3,50 @@ from socket import *
 from common.constants import (
     CLOSE_CLIENT_SOCKET_MESSAGE,
     MESSAGE_CHUNK_SIZE,
-    SERVER_HOST,
-    SERVER_PORT,
 )
 from message_serializer.serializer import MessageSerializer
 
-client_socket = socket(AF_INET, SOCK_DGRAM)
 
-message_serializer = MessageSerializer(chunk_size=MESSAGE_CHUNK_SIZE)
+class Client:
+    def __init__(self, server_port: int, server_host: str = "localhost") -> None:
+        self.server_address = (server_host, server_port)
 
-tmp_file_name = "tmp_file_client"
+        self.socket = socket(AF_INET, SOCK_DGRAM)
 
-while True:
-    message = input("Input message: ")
+        host, port = self.socket.getsockname()
+        self.messages_file_name = f"{host}-{port}"
 
-    if message == CLOSE_CLIENT_SOCKET_MESSAGE:
-        break
+        self.message_serializer = MessageSerializer(chunk_size=MESSAGE_CHUNK_SIZE)
 
-    file_path = message_serializer.build_messages_file(
-        file_name=tmp_file_name, message=message
-    )
+    def start(
+        self,
+    ):
+        while True:
+            message = input("Input message: ")
 
-    chunked_message = message_serializer.parse_file_into_message_stream(file_path)
+            if message == CLOSE_CLIENT_SOCKET_MESSAGE:
+                self.stop()
 
-    for chunk in chunked_message:
-        client_socket.sendto(chunk.encode(), (SERVER_HOST, SERVER_PORT))
+                break
 
-    message_serializer.remove_file(tmp_file_name)
+            file_path = self.message_serializer.build_messages_file(
+                file_name=self.messages_file_name, message=message
+            )
 
-    received_message, server_address = client_socket.recvfrom(MESSAGE_CHUNK_SIZE)
+            chunked_message = self.message_serializer.parse_file_into_message_stream(
+                file_path
+            )
 
-    print(f"[CLIENT] Received message: {received_message.decode()}")
+            for chunk in chunked_message:
+                self.socket.sendto(chunk.encode(), self.server_address)
 
-client_socket.close()
+            self.message_serializer.remove_file(self.messages_file_name)
+
+            received_message, _ = self.socket.recvfrom(MESSAGE_CHUNK_SIZE)
+
+            print(f"[CLIENT] Received message: {received_message.decode()}")
+
+    def stop(self):
+        print("[CLIENT] Closing socket connection")
+
+        self.socket.close()
