@@ -19,7 +19,7 @@ while True:
     received_message = message.decode()
 
     print(
-        f"[SERVER] Received the following message from client {client_address}: {received_message}"
+        f"[SERVER] Received the following chunk from client {client_address}: {received_message}"
     )
 
     server_socket.sendto(received_message.encode(), client_address)
