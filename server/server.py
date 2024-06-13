@@ -2,8 +2,6 @@ from socket import *
 
 from common.constants import FINISH_SERVER_MESSAGE, MESSAGE_CHUNK_SIZE, SERVER_PORT
 
-server_port = 12000
-
 server_socket = socket(AF_INET, SOCK_DGRAM)
 
 server_socket.bind(("", SERVER_PORT))
