@@ -7,4 +7,4 @@ client:
 	python -m client.main
 
 server:
-	python -m server.server
+	python -m server.main
