@@ -20,7 +20,7 @@ class Client:
 
     def start(
         self,
-    ):
+    ) -> None:
         while True:
             message = input("Input message: ")
 
@@ -46,7 +46,7 @@ class Client:
 
             print(f"[CLIENT] Received message: {received_message.decode()}")
 
-    def stop(self):
+    def stop(self) -> None:
         print("[CLIENT] Closing socket connection")
 
         self.socket.close()
