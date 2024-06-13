@@ -1,10 +1,10 @@
 import os
 from typing import Optional
-from message_serializer.constants import CHUNK_SIZE
+from common.constants import MESSAGE_CHUNK_SIZE
 
 
 class MessageSerializer:
-    def __init__(self, chunk_size: Optional[int] = CHUNK_SIZE) -> None:
+    def __init__(self, chunk_size: Optional[int] = MESSAGE_CHUNK_SIZE) -> None:
         self.chunk_size = chunk_size
         self.files_dir = "message_serializer/files/"
 
