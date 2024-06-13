@@ -3,29 +3,34 @@ from socket import *
 from common.constants import (
     FINISH_SERVER_MESSAGE,
     MESSAGE_CHUNK_SIZE,
-    SERVER_HOST,
-    SERVER_PORT,
 )
 
-server_socket = socket(AF_INET, SOCK_DGRAM)
 
-server_socket.bind((SERVER_HOST, SERVER_PORT))
+class Server:
+    def __init__(self, port: int, host: str = "localhost") -> None:
+        self.address = (host, port)
 
-print("[SERVER] The server is ready to receive messages")
+        self.socket = socket(AF_INET, SOCK_DGRAM)
 
-while True:
-    message, client_address = server_socket.recvfrom(MESSAGE_CHUNK_SIZE)
+    def start(self) -> None:
+        self.socket.bind(self.address)
 
-    received_message = message.decode()
+        print("[SERVER] The server is ready to receive messages")
 
-    print(
-        f"[SERVER] Received the following chunk from client {client_address}: {received_message}"
-    )
+        while True:
+            chunk_message, client_address = self.socket.recvfrom(MESSAGE_CHUNK_SIZE)
 
-    server_socket.sendto(received_message.encode(), client_address)
+            received_chunk_message = chunk_message.decode()
 
-    if received_message == FINISH_SERVER_MESSAGE:
-        print(
-            "[SERVER] The server has received the finish message. Will exit the process."
-        )
-        break
+            if received_chunk_message == FINISH_SERVER_MESSAGE:
+                print(
+                    "[SERVER] The server has received the finish message. Will exit the process."
+                )
+
+                break
+
+            print(
+                f"[SERVER] Received the following chunk from client {client_address}: {received_chunk_message}"
+            )
+
+            self.socket.sendto(received_chunk_message.encode(), client_address)
