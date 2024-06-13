@@ -1,10 +1,15 @@
 from socket import *
 
-from common.constants import FINISH_SERVER_MESSAGE, MESSAGE_CHUNK_SIZE, SERVER_PORT
+from common.constants import (
+    FINISH_SERVER_MESSAGE,
+    MESSAGE_CHUNK_SIZE,
+    SERVER_HOST,
+    SERVER_PORT,
+)
 
 server_socket = socket(AF_INET, SOCK_DGRAM)
 
-server_socket.bind(("", SERVER_PORT))
+server_socket.bind((SERVER_HOST, SERVER_PORT))
 
 print("[SERVER] The server is ready to receive messages")
 
