@@ -1,5 +1,15 @@
 # Chat UDP
 
+## Sumário
+
+- [Arquitetura](#arquitetura)
+  - [Arquitetura dos Clientes](#arquitetura-dos-clientes)
+  - [Arquitetura do Servidor](#arquitetura-do-servidor)
+- [Desenvolvimento local](#desenvolvimento-local)
+  - [Criando um ambiente virtual Python](#criando-um-ambiente-virtual-python)
+  - [Instalando as dependências](#instalando-as-dependências)
+  - [Utilizando o makefile](#utilizando-o-makefile)
+
 ## Arquitetura
 
 A arquitetura do projeto segue o fluxo mostrado abaixo
@@ -21,3 +31,53 @@ Do lado do servidor, será preciso agrupar diferentes chunks de uma mensagem (po
 A imagem abaixo traz mais detalhes.
 
 ![image](https://github.com/RicardoMorato/ChatUDP/assets/56000167/d7c32711-8a5b-4576-aa39-b5530c963d38)
+
+## Desenvolvimento local
+
+Para um desenvolvimento local intuitivo e simples, recomenda-se a utilização de um ambiente virtual Python ([Python venv](https://www.geeksforgeeks.org/create-virtual-environment-using-venv-python/?ref=ml_lbp)), ou rodar o projeto em um contêiner Docker. Note que o projeto **não possui um Dockerfile**, ficando a cargo da pessoa que decidir utilizar essa ferramenta por criar o arquivo e lidar com eventuais problemas.
+
+### Criando um ambiente virtual Python
+
+Para criar um `venv`, use o comando abaixo:
+
+```shell
+python -m venv .venv
+```
+
+Após isso, será necessário ativar o ambiente virtual, usando o comando abaixo:
+
+- Para ambientes Unix:
+
+```shell
+source .venv/bin/activate
+```
+
+- Para Windows:
+
+```shell
+.\.venv\Scripts\activate
+```
+
+### Instalando as dependências
+
+O projeto utiliza a dependência externa Pytest para rodar os testes, portanto, será necessário instalar as bibliotecas listadas no arquivo [`requirements.txt`](/requirements.txt), para tal, basta utilizar o comando abaixo:
+
+```shell
+pip install -r requirements.txt
+```
+
+### Utilizando o makefile
+
+A fim de aumentar a produtividade das pessoas ligadas ao projeto, estamos utilizando um [makefile](/makefile) com os seguintes comandos:
+
+- `test`: Responsável por rodar os testes do projeto
+- `client`: Responsável por criar uma instância Cliente
+- `server`: Responsável por criar uma instância Servidor
+
+Para rodar os comandos, faça:
+
+```shell
+make NOME_DO_COMANDO
+```
+
+Em que `NOME_DO_COMANDO` deve ser um dos listados anteriormente.
