@@ -56,4 +56,4 @@ class Client:
         while True:
             received_message, _ = self.socket.recvfrom(MESSAGE_CHUNK_SIZE)
 
-            print(f"\n[CLIENT] Received message: {received_message.decode()}")
+            print(f"\n{received_message.decode()}")
