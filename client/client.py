@@ -1,3 +1,5 @@
+import threading
+
 from socket import *
 
 from common.constants import (
@@ -21,8 +23,11 @@ class Client:
     def start(
         self,
     ) -> None:
+        thread = threading.Thread(target=self.listen)
+        thread.start()
+
         while True:
-            message = input("Input message: ")
+            message = input("")
 
             if message == CLOSE_CLIENT_SOCKET_MESSAGE:
                 self.stop()
@@ -42,11 +47,13 @@ class Client:
 
             self.message_serializer.remove_file(self.messages_file_name)
 
-            received_message, _ = self.socket.recvfrom(MESSAGE_CHUNK_SIZE)
-
-            print(f"[CLIENT] Received message: {received_message.decode()}")
-
     def stop(self) -> None:
         print("[CLIENT] Closing socket connection")
 
         self.socket.close()
+
+    def listen(self) -> None:
+        while True:
+            received_message, _ = self.socket.recvfrom(MESSAGE_CHUNK_SIZE)
+
+            print(f"\n{received_message.decode()}")
