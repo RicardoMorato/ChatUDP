@@ -1,7 +1,11 @@
 from socket import *
+from typing import Any
 
 from common.constants import (
     MESSAGE_CHUNK_SIZE,
+    GREETING_MESSAGE,
+    USER_JOINED_THE_ROOM_MESSAGE,
+    USER_CONNECTED_SUCCESSFULLY_MESSAGE,
 )
 
 
@@ -20,33 +24,31 @@ class Server:
             chunk_message, client_address = self.socket.recvfrom(MESSAGE_CHUNK_SIZE)
 
             received_chunk_message = chunk_message.decode()
-            greeting_message = "hi, meu nome eh "
-            user_joined_the_room_message = " entrou na sala!"
 
-            if received_chunk_message.startswith(greeting_message):
-                client_name = received_chunk_message.split(greeting_message)[1]
+            # Usuário mandou a mensagem de saudação
+            is_greeting_message = received_chunk_message.startswith(GREETING_MESSAGE)
+            is_client_connected = self.is_client_already_connected(client_address)
+
+            if is_greeting_message and not is_client_connected:
+                client_name = received_chunk_message.split(GREETING_MESSAGE)[1]
 
                 client = {"address": client_address, "name": client_name}
 
                 self.clients.append(client)
 
-                connected_successfully = "You connected successfully to the chat"
-
                 # Enviando mensagem "Conectado com sucesso"
-                self.socket.sendto(connected_successfully.encode(), client_address)
+                self.socket.sendto(
+                    USER_CONNECTED_SUCCESSFULLY_MESSAGE.encode(), client_address
+                )
 
-                client_joined_message = client_name + user_joined_the_room_message
+                client_joined_message = client_name + USER_JOINED_THE_ROOM_MESSAGE
 
                 # Enviando mensagem "Fulano entrou na sala"
-                for client in self.clients:
-                    if client_address != client["address"]:
-                        self.socket.sendto(
-                            client_joined_message.encode(), client["address"]
-                        )
+                self.broadcast(client_address, client_joined_message)
 
                 print(f"[SERVER] Client was added to the clients list: {client}")
                 print(f"[SERVER] Current clients list: {self.clients}")
-            else:
+            elif is_client_connected:
                 print(
                     f"[SERVER] Received the following chunk from client {client_address}: {received_chunk_message}. "
                     "And will broadcast to the others"
@@ -54,15 +56,28 @@ class Server:
 
                 print(f"[SERVER] Current clients list: {self.clients}")
 
-                message_sender = [
-                    c for c in self.clients if c["address"] == client_address
-                ][0]
+                message_sender = self.find_connected_client(client_address)
 
-                for client in self.clients:
-                    sender_host, sender_port = message_sender["address"]
-                    sender_name = message_sender["name"]
+                sender_host, sender_port = message_sender["address"]
+                sender_name = message_sender["name"]
 
-                    message = f"{sender_host}:{sender_port}/~{sender_name}: {received_chunk_message}"
+                message = f"{sender_host}:{sender_port}/~{sender_name}: {received_chunk_message}"
 
-                    if client_address != client["address"]:
-                        self.socket.sendto(message.encode(), client["address"])
+                self.broadcast(message_sender["address"], message)
+
+    def broadcast(self, sender_address, message_to_broadcast: str = "") -> None:
+        for client in self.clients:
+            if client["address"] != sender_address:
+                self.socket.sendto(message_to_broadcast.encode(), client["address"])
+
+    def find_connected_client(self, client_address) -> dict[str, Any]:
+        for client in self.clients:
+            if client["address"] == client_address:
+                return client
+
+    def is_client_already_connected(self, client_address) -> bool:
+        for client in self.clients:
+            if client["address"] == client_address:
+                return True
+
+        return False
