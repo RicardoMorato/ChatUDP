@@ -4,7 +4,7 @@ import os
 from socket import *
 
 # Adicionando o diretório pai ao sys.path para nao ter erro de importação do modulo common
-sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 from common.constants import (
     CLOSE_CLIENT_SOCKET_MESSAGE,
     MESSAGE_CHUNK_SIZE,
@@ -26,12 +26,12 @@ class Client:
     def start(
         self,
     ) -> None:
-        thread = threading.Thread(target=self.listen)
+        thread = threading.Thread(daemon=True, target=self.listen)
         thread.start()
 
         while True:
             message = input("")
-            
+
             if message == CLOSE_CLIENT_SOCKET_MESSAGE:
                 self.send_disconnection_message()
                 self.stop()
@@ -50,6 +50,7 @@ class Client:
                 self.socket.sendto(chunk.encode(), self.server_address)
 
             self.message_serializer.remove_file(self.messages_file_name)
+
     # Mensagem pra pegar o desligamento antes do break
     def send_disconnection_message(self) -> None:
         self.socket.sendto("bye".encode(), self.server_address)
@@ -61,6 +62,9 @@ class Client:
 
     def listen(self) -> None:
         while True:
-            received_message, _ = self.socket.recvfrom(MESSAGE_CHUNK_SIZE)
+            try:
+                received_message, _ = self.socket.recvfrom(MESSAGE_CHUNK_SIZE)
 
-            print(f"\n{received_message.decode()}")
+                print(f"\n{received_message.decode()}")
+            except error:
+                pass
