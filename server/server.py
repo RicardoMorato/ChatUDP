@@ -4,7 +4,7 @@ from socket import *
 from typing import Any
 
 # Adicionando o diretório pai ao sys.path para nao ter erro de importação do modulo common
-sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 from common.constants import (
     MESSAGE_CHUNK_SIZE,
     GREETING_MESSAGE,
@@ -31,7 +31,6 @@ class Server:
 
             received_chunk_message = chunk_message.decode()
 
-    
             # Usuário mandou a mensagem de saudação
             is_greeting_message = received_chunk_message.startswith(GREETING_MESSAGE)
             is_client_connected = self.is_client_already_connected(client_address)
@@ -56,9 +55,9 @@ class Server:
                 print(f"[SERVER] Client was added to the clients list: {client}")
                 print(f"[SERVER] Current clients list: {self.clients}")
             elif is_client_connected:
-                 if received_chunk_message == CLOSE_CLIENT_SOCKET_MESSAGE:
+                if received_chunk_message == CLOSE_CLIENT_SOCKET_MESSAGE:
                     self.remove_client(client_address)
-                 else:
+                else:
                     print(
                         f"[SERVER] Received the following chunk from client {client_address}: {received_chunk_message}. "
                         "And will broadcast to the others"
@@ -83,7 +82,7 @@ class Server:
             self.broadcast(client_address, notification)
             print(f"[SERVER] Client {client} has left the chat.")
             print(f"[SERVER] Current clients list: {self.clients}")
-        
+
     def broadcast(self, sender_address, message_to_broadcast: str = "") -> None:
         for client in self.clients:
             if client["address"] != sender_address:
