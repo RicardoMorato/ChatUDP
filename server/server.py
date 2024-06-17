@@ -1,7 +1,9 @@
 import sys
 import os
+import locale
 from socket import *
 from typing import Any
+from datetime import datetime
 
 # Adicionando o diretório pai ao sys.path para nao ter erro de importação do modulo common
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
@@ -99,3 +101,11 @@ class Server:
                 return True
 
         return False
+
+    def get_formatted_date_string(self) -> str:
+        locale.setlocale(locale.LC_TIME, "pt_BR")
+        current_date = datetime.now()
+
+        formatted_date = current_date.strftime("%X %x")
+
+        return formatted_date
