@@ -69,10 +69,9 @@ class Server:
 
                     message_sender = self.find_connected_client(client_address)
 
-                    sender_host, sender_port = message_sender["address"]
-                    sender_name = message_sender["name"]
-
-                    message = f"{sender_host}:{sender_port}/~{sender_name}: {received_chunk_message}"
+                    message = self.get_formatted_message(
+                        message_sender, received_chunk_message
+                    )
 
                     self.broadcast(message_sender["address"], message)
 
@@ -101,6 +100,18 @@ class Server:
                 return True
 
         return False
+
+    def get_formatted_message(
+        self, message_sender: dict[str, Any], message_chunk: str
+    ) -> str:
+        sender_host, sender_port = message_sender["address"]
+        sender_name = message_sender["name"]
+
+        formatted_date = self.get_formatted_date_string()
+
+        formatted_message = f"{sender_host}:{sender_port}/~{sender_name}: {message_chunk} {formatted_date}"
+
+        return formatted_message
 
     def get_formatted_date_string(self) -> str:
         locale.setlocale(locale.LC_TIME, "pt_BR")
