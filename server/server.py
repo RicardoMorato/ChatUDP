@@ -1,6 +1,10 @@
+import sys
+import os
 from socket import *
 from typing import Any
 
+# Adicionando o diretório pai ao sys.path para nao ter erro de importação do modulo common
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 from common.constants import (
     MESSAGE_CHUNK_SIZE,
     GREETING_MESSAGE,
