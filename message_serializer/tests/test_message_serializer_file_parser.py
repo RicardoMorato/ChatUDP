@@ -30,7 +30,8 @@ DUMMY_FILE_CONTENT_CHUNK_SIZE_10 = [
 
 class TestSerializerFileParser:
     def test_returns_content_from_file(self):
-        message_serializer = MessageSerializer()
+        chunk_size = 10000
+        message_serializer = MessageSerializer(chunk_size=chunk_size)
 
         content = list(
             message_serializer.parse_file_into_message_stream(file_path=DUMMY_FILE_PATH)
