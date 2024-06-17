@@ -14,3 +14,5 @@ GREETING_MESSAGE = "hi, meu nome eh "
 USER_JOINED_THE_ROOM_MESSAGE = " entrou na sala!"
 
 USER_CONNECTED_SUCCESSFULLY_MESSAGE = "Voce entrou no chat com sucesso, seja bem-vindo!"
+
+USER_LEFT_THE_ROOM_MESSAGE = " saiu da sala!"
