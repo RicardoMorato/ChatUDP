@@ -1,7 +1,10 @@
 import threading
-
+import sys
+import os
 from socket import *
 
+# Adicionando o diretório pai ao sys.path para nao ter erro de importação do modulo common
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 from common.constants import (
     CLOSE_CLIENT_SOCKET_MESSAGE,
     MESSAGE_CHUNK_SIZE,
@@ -28,8 +31,9 @@ class Client:
 
         while True:
             message = input("")
-
+            
             if message == CLOSE_CLIENT_SOCKET_MESSAGE:
+                self.send_disconnection_message()
                 self.stop()
 
                 break
@@ -46,6 +50,9 @@ class Client:
                 self.socket.sendto(chunk.encode(), self.server_address)
 
             self.message_serializer.remove_file(self.messages_file_name)
+    # Mensagem pra pegar o desligamento antes do break
+    def send_disconnection_message(self) -> None:
+        self.socket.sendto("bye".encode(), self.server_address)
 
     def stop(self) -> None:
         print("[CLIENT] Closing socket connection")
