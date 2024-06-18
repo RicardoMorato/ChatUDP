@@ -32,12 +32,6 @@ class Client:
         while True:
             message = input("")
 
-            if message == CLOSE_CLIENT_SOCKET_MESSAGE:
-                self.send_disconnection_message()
-                self.stop()
-
-                break
-
             file_path = self.message_serializer.build_messages_file(
                 file_name=self.messages_file_name, message=message
             )
@@ -51,9 +45,10 @@ class Client:
 
             self.message_serializer.remove_file(self.messages_file_name)
 
-    # Mensagem pra pegar o desligamento antes do break
-    def send_disconnection_message(self) -> None:
-        self.socket.sendto("bye".encode(), self.server_address)
+            if message == CLOSE_CLIENT_SOCKET_MESSAGE:
+                self.stop()
+
+                break
 
     def stop(self) -> None:
         print("[CLIENT] Closing socket connection")
