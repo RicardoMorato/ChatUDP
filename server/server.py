@@ -1,6 +1,5 @@
 import sys
 import os
-import locale
 from socket import *
 from typing import Any
 from datetime import datetime
@@ -114,9 +113,8 @@ class Server:
         return formatted_message
 
     def get_formatted_date_string(self) -> str:
-        locale.setlocale(locale.LC_TIME, "pt_BR")
         current_date = datetime.now()
 
-        formatted_date = current_date.strftime("%X %x")
+        formatted_date = current_date.strftime("%H:%M:%S %d/%m/%Y")
 
         return formatted_date
