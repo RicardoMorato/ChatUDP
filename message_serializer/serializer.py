@@ -1,6 +1,7 @@
 import os
+import re
 
-from typing import Optional, Generator
+from typing import Optional, Generator, Tuple
 
 from common.constants import MESSAGE_CHUNK_SIZE
 
@@ -51,3 +52,25 @@ class MessageSerializer:
 
         if os.path.isfile(file_path):
             os.remove(file_path)
+
+    def extract_parts_of_received_message(self, received_message: str) -> Tuple[str]:
+        extract_message_text_pattern = (
+            r"~[^:]+: (.+?) \d{2}:\d{2}:\d{2} \d{2}/\d{2}/\d{4}"
+        )
+
+        extract_host_and_timestamp_pattern = (
+            r"^(.*?): .+? (\d{2}:\d{2}:\d{2} \d{2}/\d{2}/\d{4})$"
+        )
+
+        regexp_match = re.search(extract_message_text_pattern, received_message)
+
+        if regexp_match:
+            message = regexp_match.group(1)
+
+        regexp_match = re.search(extract_host_and_timestamp_pattern, received_message)
+
+        if regexp_match:
+            host = regexp_match.group(1)
+            timestamp = regexp_match.group(2)
+
+        return message, host, timestamp
