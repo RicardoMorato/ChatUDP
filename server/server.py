@@ -112,6 +112,11 @@ class Server:
         formatted_message = f"{sender_host}:{sender_port}/~{sender_name}: {message_chunk} {formatted_date}"
 
         if len(formatted_message) > MESSAGE_CHUNK_SIZE:
+            """
+            Se entrarmos nessa condição, significa que a mensagem formatada (host + message_chunk + timestamp)
+            é maior do que o chunk_size pré-determinado enviado pelo socket.
+            Portanto, precisamos dividir a o message_chunk em chunks menores que respeitem o MESSAGE_CHUNK_SIZE.
+            """
             messages = []
 
             formatted_message_default_length = len(
