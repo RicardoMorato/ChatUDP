@@ -1,6 +1,5 @@
 import sys
 import os
-import locale
 from socket import *
 from typing import Any
 from datetime import datetime
@@ -69,11 +68,12 @@ class Server:
 
                     message_sender = self.find_connected_client(client_address)
 
-                    message = self.get_formatted_message(
+                    messages = self.get_formatted_message(
                         message_sender, received_chunk_message
                     )
 
-                    self.broadcast(message_sender["address"], message)
+                    for message in messages:
+                        self.broadcast(message_sender["address"], message)
 
     def remove_client(self, client_address) -> None:
         client = self.find_connected_client(client_address)
@@ -103,7 +103,7 @@ class Server:
 
     def get_formatted_message(
         self, message_sender: dict[str, Any], message_chunk: str
-    ) -> str:
+    ) -> list[str]:
         sender_host, sender_port = message_sender["address"]
         sender_name = message_sender["name"]
 
@@ -111,12 +111,36 @@ class Server:
 
         formatted_message = f"{sender_host}:{sender_port}/~{sender_name}: {message_chunk} {formatted_date}"
 
-        return formatted_message
+        if len(formatted_message) > MESSAGE_CHUNK_SIZE:
+            """
+            Se entrarmos nessa condição, significa que a mensagem formatada (host + message_chunk + timestamp)
+            é maior do que o chunk_size pré-determinado enviado pelo socket.
+            Portanto, precisamos dividir a o message_chunk em chunks menores que respeitem o MESSAGE_CHUNK_SIZE.
+            """
+            messages = []
+
+            formatted_message_default_length = len(
+                f"{sender_host}:{sender_port}/~{sender_name}:  {formatted_date}"
+            )
+            message_max_size = MESSAGE_CHUNK_SIZE - formatted_message_default_length - 3
+
+            chunks = [
+                message_chunk[i : i + message_max_size]
+                for i in range(0, len(message_chunk), message_max_size)
+            ]
+
+            for chunk in chunks:
+                messages.append(
+                    f"{sender_host}:{sender_port}/~{sender_name}: {chunk} {formatted_date}"
+                )
+
+            return messages
+
+        return [formatted_message]
 
     def get_formatted_date_string(self) -> str:
-        locale.setlocale(locale.LC_TIME, "pt_BR")
         current_date = datetime.now()
 
-        formatted_date = current_date.strftime("%X %x")
+        formatted_date = current_date.strftime("%H:%M:%S %d/%m/%Y")
 
         return formatted_date
