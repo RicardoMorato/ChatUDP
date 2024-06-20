@@ -54,6 +54,37 @@ class MessageSerializer:
             os.remove(file_path)
 
     def extract_parts_of_received_message(self, received_message: str) -> Tuple[str]:
+        """
+        Esse método recebe uma mensagem no padrão `~host: mensagem 12:34:56 01/01/2022` (i.e. `~<HOST>: <MESSAGE> <TIMESTAMP>`)
+        e retorna um tripla no formato (message, host, timestamp).
+
+        O método utiliza padrões RegExp para extrair cada uma dessas partes da mensagem.
+        Caso não seja possível extrair as partes da mensagem, uma exceção será lançada.
+
+        Os padrões utilizados são:
+
+        ```python
+        r"~[^:]+: (.+?) \d{2}:\d{2}:\d{2} \d{2}/\d{2}/\d{4}"
+        ```
+
+        Para capturar apenas a mensagem.
+
+        E o padrão
+
+        ```python
+        r"^(.*?): .+? (\d{2}:\d{2}:\d{2} \d{2}/\d{2}/\d{4})$"
+        ```
+
+        Para capturar o host e o timestamp da mensagem.
+
+        Para mais informações e exemplos de como utilizar RegExp, os sites [RegexOne](https://regexone.com/) e [Regex101](https://regex101.com/)
+        são ótimos materiais de estudo.
+
+        Para exemplos de utilização do método, o arquivo de testes desse método
+        ([test_message_serializer_message_extractor.py](message_serializer/tests/test_message_serializer_message_extractor.py))
+        traz alguns casos de uso interessantes.
+        """
+
         extract_message_text_pattern = (
             r"~[^:]+: (.+?) \d{2}:\d{2}:\d{2} \d{2}/\d{2}/\d{4}"
         )
