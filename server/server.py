@@ -13,67 +13,55 @@ from common.constants import (
     USER_CONNECTED_SUCCESSFULLY_MESSAGE,
     CLOSE_CLIENT_SOCKET_MESSAGE,
     USER_LEFT_THE_ROOM_MESSAGE,
+    ACK_MESSAGE
 )
-
 
 class Server:
     def __init__(self, port: int, host: str = "localhost") -> None:
         self.address = (host, port)
         self.clients = []
         self.socket = socket(AF_INET, SOCK_DGRAM)
+        self.sequence_numbers = {}  # Armazena o número de sequência do cliente
 
     def start(self) -> None:
         self.socket.bind(self.address)
-
         print("[SERVER] The server is ready to receive messages")
 
         while True:
             chunk_message, client_address = self.socket.recvfrom(MESSAGE_CHUNK_SIZE)
-
             received_chunk_message = chunk_message.decode()
+            seq_num, message = self.parse_message_with_seq(received_chunk_message)
 
-            # Usuário mandou a mensagem de saudação
-            is_greeting_message = received_chunk_message.startswith(GREETING_MESSAGE)
-            is_client_connected = self.is_client_already_connected(client_address)
+            # Responder com ACK
+            self.socket.sendto(f"{ACK_MESSAGE}{seq_num}".encode(), client_address)
 
-            if is_greeting_message and not is_client_connected:
-                client_name = received_chunk_message.split(GREETING_MESSAGE)[1]
+            # Processar a mensagem conforme o protocolo
+            self.process_message(message, client_address)
 
-                client = {"address": client_address, "name": client_name}
+    def process_message(self, message_chunk: str, client_address) -> None:
+        is_greeting_message = message_chunk.startswith(GREETING_MESSAGE)
+        is_client_connected = self.is_client_already_connected(client_address)
 
-                self.clients.append(client)
-
-                # Enviando mensagem "Conectado com sucesso"
-                self.socket.sendto(
-                    USER_CONNECTED_SUCCESSFULLY_MESSAGE.encode(), client_address
-                )
-
-                client_joined_message = client_name + USER_JOINED_THE_ROOM_MESSAGE
-
-                # Enviando mensagem "Fulano entrou na sala"
-                self.broadcast(client_address, client_joined_message)
-
-                print(f"[SERVER] Client was added to the clients list: {client}")
+        if is_greeting_message and not is_client_connected:
+            client_name = message_chunk.split(GREETING_MESSAGE)[1]
+            client = {"address": client_address, "name": client_name}
+            self.clients.append(client)
+            self.socket.sendto(USER_CONNECTED_SUCCESSFULLY_MESSAGE.encode(), client_address)
+            client_joined_message = client_name + USER_JOINED_THE_ROOM_MESSAGE
+            self.broadcast(client_address, client_joined_message)
+            print(f"[SERVER] Client was added to the clients list: {client}")
+            print(f"[SERVER] Current clients list: {self.clients}")
+        elif is_client_connected:
+            if message_chunk == CLOSE_CLIENT_SOCKET_MESSAGE:
+                self.remove_client(client_address)
+            else:
+                print(f"[SERVER] Received the following chunk from client {client_address}: {message_chunk}. "
+                      "And will broadcast to the others")
                 print(f"[SERVER] Current clients list: {self.clients}")
-            elif is_client_connected:
-                if received_chunk_message == CLOSE_CLIENT_SOCKET_MESSAGE:
-                    self.remove_client(client_address)
-                else:
-                    print(
-                        f"[SERVER] Received the following chunk from client {client_address}: {received_chunk_message}. "
-                        "And will broadcast to the others"
-                    )
-
-                    print(f"[SERVER] Current clients list: {self.clients}")
-
-                    message_sender = self.find_connected_client(client_address)
-
-                    messages = self.get_formatted_message(
-                        message_sender, received_chunk_message
-                    )
-
-                    for message in messages:
-                        self.broadcast(message_sender["address"], message)
+                message_sender = self.find_connected_client(client_address)
+                messages = self.get_formatted_message(message_sender, message_chunk)
+                for message in messages:
+                    self.broadcast(message_sender["address"], message)
 
     def remove_client(self, client_address) -> None:
         client = self.find_connected_client(client_address)
@@ -98,49 +86,33 @@ class Server:
         for client in self.clients:
             if client["address"] == client_address:
                 return True
-
         return False
 
-    def get_formatted_message(
-        self, message_sender: dict[str, Any], message_chunk: str
-    ) -> list[str]:
+    def get_formatted_message(self, message_sender: dict[str, Any], message_chunk: str) -> list[str]:
         sender_host, sender_port = message_sender["address"]
         sender_name = message_sender["name"]
-
         formatted_date = self.get_formatted_date_string()
-
         formatted_message = f"{sender_host}:{sender_port}/~{sender_name}: {message_chunk} {formatted_date}"
 
         if len(formatted_message) > MESSAGE_CHUNK_SIZE:
-            """
-            Se entrarmos nessa condição, significa que a mensagem formatada (host + message_chunk + timestamp)
-            é maior do que o chunk_size pré-determinado enviado pelo socket.
-            Portanto, precisamos dividir a o message_chunk em chunks menores que respeitem o MESSAGE_CHUNK_SIZE.
-            """
             messages = []
-
-            formatted_message_default_length = len(
-                f"{sender_host}:{sender_port}/~{sender_name}:  {formatted_date}"
-            )
+            formatted_message_default_length = len(f"{sender_host}:{sender_port}/~{sender_name}:  {formatted_date}")
             message_max_size = MESSAGE_CHUNK_SIZE - formatted_message_default_length - 3
-
-            chunks = [
-                message_chunk[i : i + message_max_size]
-                for i in range(0, len(message_chunk), message_max_size)
-            ]
-
+            chunks = [message_chunk[i: i + message_max_size] for i in range(0, len(message_chunk), message_max_size)]
             for chunk in chunks:
-                messages.append(
-                    f"{sender_host}:{sender_port}/~{sender_name}: {chunk} {formatted_date}"
-                )
-
+                messages.append(f"{sender_host}:{sender_port}/~{sender_name}: {chunk} {formatted_date}")
             return messages
-
         return [formatted_message]
 
     def get_formatted_date_string(self) -> str:
         current_date = datetime.now()
-
         formatted_date = current_date.strftime("%H:%M:%S %d/%m/%Y")
-
         return formatted_date
+
+    def parse_message_with_seq(self, message):
+        # Implementa lógica para analisar mensagem com número de sequência
+        if message.startswith("SEQ"):
+            seq_num, msg = message[3:].split(":", 1)
+            return int(seq_num), msg
+        return -1, message  # O padrão é -1 se o número de sequência não tiver presente
+
