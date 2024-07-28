@@ -29,7 +29,9 @@ class Client:
         self.sequence_number = 0
         self.lock = threading.Lock()
         self.acks_received = {}  #ACKs recebidos
-        self.timeout = 2  #Timeout em segundos
+        self.timeout = 0.00001  #Timeout em segundos
+        self.timer = None  # Temporizador
+        self.start_time = None
 
     def start(self) -> None:
         thread = threading.Thread(daemon=True, target=self.listen)
@@ -52,15 +54,28 @@ class Client:
                 self.stop()
                 break
 
-    def send_with_sequence(self, chunk): #Método para enviar a mensagem com o número de sequência
+    def send_with_sequence(self, chunk):  # Método para enviar a mensagem com o número de sequência
         with self.lock:
             message_with_seq = f"SEQ{self.sequence_number}:{chunk}"
+            self.start_time = time.perf_counter()  #Inicia a contagem do tempo
             self.socket.sendto(message_with_seq.encode(), self.server_address)
-            self.sequence_number = 1 - self.sequence_number # Protocolo bit alternante como no livro, os numeros de sequência são apenas 0 e 1 no RDT3.0
-            #print(self.sequence_number)
+            self.start_timer()  #Inicia o temporizador
+            #print(f"mandando pacote com numero de sequencia: {self.sequence_number}")
+
+    def start_timer(self):
+        if self.timer is not None:
+            self.timer.cancel()
+        self.timer = threading.Timer(self.timeout, self.timer_expired)
+        self.timer.start()
+        #print(f"temporizador iniciado para o numero de sequencia: {self.sequence_number}")
+
+    def timer_expired(self):
+        print(f"temporizador expirado para o numero de sequencia:{self.sequence_number}")
 
     def stop(self) -> None:
         print("[CLIENT] Closing socket connection")
+        if self.timer is not None:
+            self.timer.cancel()
         self.socket.close()
 
     def listen(self) -> None:
@@ -70,11 +85,18 @@ class Client:
                 message = received_message.decode()
                 
                 if message.startswith(ACK_MESSAGE):
-                    #print(f"{message}")
                     ack_number = int(message[len(ACK_MESSAGE):])
-                    with self.lock: #serve pra garantir que o acesso ao dicionário self.acks_received seja seguro, vi em algum fórum
-                        self.acks_received[ack_number] = True #Marca o número de sequência ack_number como "recebido" no dicionário
-                
+                    with self.lock:  #serve pra garantir que o acesso ao dicionário self.acks_received seja seguro, vi em algum fórum
+                        self.acks_received[ack_number] = True  #Marca o número de sequência ack_number como "recebido" no dicionario
+                        if ack_number == self.sequence_number:
+                            #print(f"ack {ack_number} recebido")
+                            if self.timer is not None:
+                                self.timer.cancel()  # Para o temporizador
+                                elapsed_time = time.perf_counter() - self.start_time
+                                #print(f"encerrando timer para o numero de sequencia: {ack_number}")
+                                #print(f"tempo: {elapsed_time:.6f} seconds")
+                            self.sequence_number = 1 - self.sequence_number  # Protocolo bit alternante como no livro, os numeros de sequência são apenas 0 e 1 no RDT3.0
+
                 elif (
                     message == USER_CONNECTED_SUCCESSFULLY_MESSAGE
                     or USER_JOINED_THE_ROOM_MESSAGE in message
@@ -100,3 +122,14 @@ class Client:
                 ###ACREDITO QUE AQUI ENTRA O REENVIO DO PACOTE DEPOIS DA IMPLEMENTAÇÃO E VERIFICAÇÃO DO CHECKSUM CASO CONTER ERROS
                 print("[CLIENT] Erro ao receber mensagem")
 
+'''
+Pelo menos até o momento, as linhas 63, 70, 92, 96 e 97 (pode ser que as alterações futuras 
+desça as linhas de codigo) tem prints que mostram
+a ordem de saída e entrada de cada pacote, e o tempo que cada pacote
+leva para ser enviado e recebido.
+'''
+
+
+'''Como não esta implementado o reenvio do pacote, o temporizador expira e o pacote ainda chega ao servidor
+é preciso mudar essa logica
+'''

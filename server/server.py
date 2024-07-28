@@ -21,7 +21,7 @@ class Server:
         self.address = (host, port)
         self.clients = []
         self.socket = socket(AF_INET, SOCK_DGRAM)
-        self.sequence_numbers = {}  # Armazena o número de sequência do cliente
+        self.sequence_numbers = {}  #armazena o número de sequência do cliente
 
     def start(self) -> None:
         self.socket.bind(self.address)
@@ -32,13 +32,14 @@ class Server:
             received_chunk_message = chunk_message.decode()
             seq_num, message = self.parse_message_with_seq(received_chunk_message)
 
-            # Responder com ACK
+            #Responder com ACK
             self.socket.sendto(f"{ACK_MESSAGE}{seq_num}".encode(), client_address)
 
-            # Processar a mensagem conforme o protocolo
+            #Processar a mensagem conforme o protocolo
             self.process_message(message, client_address)
 
     def process_message(self, message_chunk: str, client_address) -> None:
+        # Usuário mandou a mensagem de saudação
         is_greeting_message = message_chunk.startswith(GREETING_MESSAGE)
         is_client_connected = self.is_client_already_connected(client_address)
 
@@ -47,6 +48,7 @@ class Server:
             client = {"address": client_address, "name": client_name}
             self.clients.append(client)
             self.socket.sendto(USER_CONNECTED_SUCCESSFULLY_MESSAGE.encode(), client_address)
+            # Enviando mensagem "Fulano entrou na sala"
             client_joined_message = client_name + USER_JOINED_THE_ROOM_MESSAGE
             self.broadcast(client_address, client_joined_message)
             print(f"[SERVER] Client was added to the clients list: {client}")
@@ -95,6 +97,11 @@ class Server:
         formatted_message = f"{sender_host}:{sender_port}/~{sender_name}: {message_chunk} {formatted_date}"
 
         if len(formatted_message) > MESSAGE_CHUNK_SIZE:
+            """
+            Se entrarmos nessa condição, significa que a mensagem formatada (host + message_chunk + timestamp)
+            é maior do que o chunk_size pré-determinado enviado pelo socket.
+            Portanto, precisamos dividir a o message_chunk em chunks menores que respeitem o MESSAGE_CHUNK_SIZE.
+            """
             messages = []
             formatted_message_default_length = len(f"{sender_host}:{sender_port}/~{sender_name}:  {formatted_date}")
             message_max_size = MESSAGE_CHUNK_SIZE - formatted_message_default_length - 3
@@ -110,7 +117,7 @@ class Server:
         return formatted_date
 
     def parse_message_with_seq(self, message):
-        # Implementa lógica para analisar mensagem com número de sequência
+        # analisar o número de sequência
         if message.startswith("SEQ"):
             seq_num, msg = message[3:].split(":", 1)
             return int(seq_num), msg
