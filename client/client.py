@@ -29,7 +29,7 @@ class Client:
         self.sequence_number = 0
         self.lock = threading.Lock()
         self.acks_received = {}  #ACKs recebidos
-        self.timeout = 2  #Timeout em segundos
+        self.timeout = 0.00001  #Timeout em segundos
         self.timer = None  # Temporizador
         self.start_time = None
 
@@ -127,4 +127,9 @@ Pelo menos até o momento, as linhas 63, 70, 92, 96 e 97 (pode ser que as altera
 desça as linhas de codigo) tem prints que mostram
 a ordem de saída e entrada de cada pacote, e o tempo que cada pacote
 leva para ser enviado e recebido.
+'''
+
+
+'''Como não esta implementado o reenvio do pacote, o temporizador expira e o pacote ainda chega ao servidor
+é preciso mudar essa logica
 '''
