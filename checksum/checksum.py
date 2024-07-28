@@ -43,7 +43,7 @@ def append_checksum(message: bytes) -> bytes:
     return message + checksum_bytes
 
 
-def extract_data_and_checksum(message_with_checksum: bytes) -> (bytes, str):
+def extract_data_and_checksum(message_with_checksum):
     if len(message_with_checksum) < 2:
         raise ValueError("Dados são menores que o comprimento esperado para o checksum.")
 
