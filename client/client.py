@@ -29,7 +29,7 @@ class Client:
         self.sequence_number = 0
         self.lock = threading.Lock()
         self.acks_received = {}  #ACKs recebidos
-        self.timeout = 0.00001  #Timeout em segundos
+        self.timeout = 1  #Timeout em segundos
         self.timer = None  # Temporizador
         self.start_time = None
 
