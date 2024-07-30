@@ -24,7 +24,7 @@ class Server:
         self.clients = []
         self.socket = socket(AF_INET, SOCK_DGRAM)
         self.sequence_numbers = {}  #armazena o número de sequência do cliente
-
+        
     def start(self) -> None:
         self.socket.bind(self.address)
         print("[SERVER] The server is ready to receive messages")
@@ -34,8 +34,6 @@ class Server:
 
             received_packet = json.loads(pacote.decode())
             num_seq = received_packet.get("seq_num")
-
-            num_seq = received_packet["seq_num"]
     
             message_with_checksum = base64.b64decode(received_packet['message_with_checksum'])
             message, checksum = extract_data_and_checksum(message_with_checksum)
@@ -43,10 +41,17 @@ class Server:
 
             if not is_checksum_valid:
                 raise ValueError("Checksum inválido")
-            self.socket.sendto(f"{ACK_MESSAGE}{num_seq}".encode(), client_address)
-
-            #Processar a mensagem conforme o protocolo
-            self.process_message(message.decode(), client_address)
+            else:
+            # Verifica se o número de sequencia esta correto
+                expected_seq_num = self.sequence_numbers.get(client_address, 0)
+                if num_seq == expected_seq_num or num_seq == (expected_seq_num + 1) % 2:
+                    # Atualiza o número de sequência esperado para o próximo pacote
+                    self.sequence_numbers[client_address] = (expected_seq_num + 1) % 2
+                    self.socket.sendto(f"{ACK_MESSAGE}{num_seq}".encode(), client_address) # Só manda o ACK para o cliente se o checksum for válido
+                    self.process_message(message.decode(), client_address)
+                else:
+                    print("Pacote fora de ordem.")
+    
 
     def process_message(self, message_chunk: str, client_address) -> None:
         # Usuário mandou a mensagem de saudação
