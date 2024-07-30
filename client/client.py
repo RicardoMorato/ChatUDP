@@ -48,10 +48,18 @@ class Client:
                 self.send_with_sequence(chunk)
 
             if not GREETING_MESSAGE in message:
-                checksum = append_checksum(END_OF_MESSAGE_IDENTIFIER.encode())
-                data = {"message_with_checksum": base64.b64encode(checksum).decode()}
-                encoded_data = json.dumps(data).encode()
-                self.socket.sendto(encoded_data, self.server_address)
+                """
+                Dois numeros de sequencia sao usados, um para envio da mensagem e outro para o fim da mensagem
+                pois isso sempre será enviado 0 e 1 sucessivamente
+                """
+                with self.lock:
+                    checksum = append_checksum(END_OF_MESSAGE_IDENTIFIER.encode())
+                    seq_num = self.sequence_number
+                    data = {"message_with_checksum": base64.b64encode(checksum).decode(), "seq_num": seq_num}
+                    encoded_data = json.dumps(data).encode()
+                    self.socket.sendto(encoded_data, self.server_address)
+                    #print(f"mandando pacote com numero de sequencia: {self.sequence_number}")
+
 
             self.message_serializer.remove_file(self.messages_file_name)
 
