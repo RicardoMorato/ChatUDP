@@ -6,6 +6,7 @@ from datetime import datetime
 
 # Adicionando o diretório pai ao sys.path para nao ter erro de importação do modulo common
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
+from checksum.checksum import extract_data_and_checksum, verify_checksum
 from common.constants import (
     MESSAGE_CHUNK_SIZE,
     GREETING_MESSAGE,
@@ -15,7 +16,8 @@ from common.constants import (
     USER_LEFT_THE_ROOM_MESSAGE,
     ACK_MESSAGE
 )
-
+import json #importar a biblioteca json para manipular uma biblioteca em bits
+import base64
 class Server:
     def __init__(self, port: int, host: str = "localhost") -> None:
         self.address = (host, port)
@@ -28,15 +30,23 @@ class Server:
         print("[SERVER] The server is ready to receive messages")
 
         while True:
-            chunk_message, client_address = self.socket.recvfrom(MESSAGE_CHUNK_SIZE)
-            received_chunk_message = chunk_message.decode()
-            seq_num, message = self.parse_message_with_seq(received_chunk_message)
+            pacote, client_address = self.socket.recvfrom(MESSAGE_CHUNK_SIZE)
 
-            #Responder com ACK
-            self.socket.sendto(f"{ACK_MESSAGE}{seq_num}".encode(), client_address)
+            received_packet = json.loads(pacote.decode())
+            num_seq = received_packet.get("seq_num")
+
+            num_seq = received_packet["seq_num"]
+    
+            message_with_checksum = base64.b64decode(received_packet['message_with_checksum'])
+            message, checksum = extract_data_and_checksum(message_with_checksum)
+            is_checksum_valid = verify_checksum(message, checksum)
+
+            if not is_checksum_valid:
+                raise ValueError("Checksum inválido")
+            self.socket.sendto(f"{ACK_MESSAGE}{num_seq}".encode(), client_address)
 
             #Processar a mensagem conforme o protocolo
-            self.process_message(message, client_address)
+            self.process_message(message.decode(), client_address)
 
     def process_message(self, message_chunk: str, client_address) -> None:
         # Usuário mandou a mensagem de saudação
@@ -116,10 +126,11 @@ class Server:
         formatted_date = current_date.strftime("%H:%M:%S %d/%m/%Y")
         return formatted_date
 
+'''
     def parse_message_with_seq(self, message):
         # analisar o número de sequência
         if message.startswith("SEQ"):
             seq_num, msg = message[3:].split(":", 1)
             return int(seq_num), msg
         return -1, message  # O padrão é -1 se o número de sequência não tiver presente
-
+'''
