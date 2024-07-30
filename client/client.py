@@ -14,7 +14,8 @@ from common.constants import (
     USER_CONNECTED_SUCCESSFULLY_MESSAGE,
     USER_JOINED_THE_ROOM_MESSAGE,
     USER_LEFT_THE_ROOM_MESSAGE,
-    ACK_MESSAGE
+    ACK_MESSAGE,
+    NACK_MESSAGE
 )
 from message_serializer.serializer import MessageSerializer
 from checksum.checksum import *
@@ -31,9 +32,10 @@ class Client:
         self.sequence_number = 0
         self.lock = threading.Lock()
         self.acks_received = {}  #ACKs recebidos
-        self.timeout = 1  #Timeout em segundos
+        self.timeout = 1 #Timeout em segundos
         self.timer = None  # Temporizador
         self.start_time = None
+        self.packet_to_resend = None  # Pacote a ser reenviado
 
     def start(self) -> None:
         thread = threading.Thread(daemon=True, target=self.listen)
@@ -56,9 +58,11 @@ class Client:
                     checksum = append_checksum(END_OF_MESSAGE_IDENTIFIER.encode())
                     seq_num = self.sequence_number
                     data = {"message_with_checksum": base64.b64encode(checksum).decode(), "seq_num": seq_num}
-                    encoded_data = json.dumps(data).encode()
-                    self.socket.sendto(encoded_data, self.server_address)
-                    #print(f"mandando pacote com numero de sequencia: {self.sequence_number}")
+                    self.packet_to_resend = json.dumps(data).encode()
+                    self.start_time = time.perf_counter()
+                    self.start_timer()  # Inicia o temporizador
+                    self.socket.sendto(self.packet_to_resend, self.server_address)
+                    # print(f"mandando pacote com numero de sequencia: {self.sequence_number}")
 
 
             self.message_serializer.remove_file(self.messages_file_name)
@@ -74,10 +78,11 @@ class Client:
             seq_num = self.sequence_number
             self.start_time = time.perf_counter()  #Inicia a contagem do tempo
             data = {"message_with_checksum": base64.b64encode(checksum).decode(), "seq_num": seq_num}
-            encoded_data = json.dumps(data).encode()
-            self.socket.sendto(encoded_data, self.server_address)
-            self.start_timer()  #Inicia o temporizador
-            #print(f"mandando pacote com numero de sequencia: {self.sequence_number}")
+            self.packet_to_resend = json.dumps(data).encode()
+            self.start_time = time.perf_counter()  # Inicia a contagem do tempo
+            self.start_timer()  # Inicia o temporizador
+            self.socket.sendto(self.packet_to_resend, self.server_address)
+            # print(f"mandando pacote com numero de sequencia: {self.sequence_number}")
 
     def start_timer(self):
         if self.timer is not None:
@@ -87,7 +92,18 @@ class Client:
         #print(f"temporizador iniciado para o numero de sequencia: {self.sequence_number}")
 
     def timer_expired(self):
-        print(f"temporizador expirado para o numero de sequencia:{self.sequence_number}")
+        #Sprint(f"temporizador expirado para o numero de sequencia: {self.sequence_number}")
+        self.retransmit_packet()
+
+
+    def retransmit_packet(self):
+        with self.lock:
+            if self.packet_to_resend:
+                self.socket.sendto(self.packet_to_resend, self.server_address)
+                self.start_time = time.perf_counter()  # Reinicia o temporizador
+                self.start_timer()
+                #print(f"Reenviando pacote número de sequência {self.sequence_number}.")
+                time.sleep(1)
 
     def stop(self) -> None:
         print("[CLIENT] Closing socket connection")
@@ -113,7 +129,13 @@ class Client:
                                 #print(f"encerrando timer para o numero de sequencia: {ack_number}")
                                 #print(f"tempo: {elapsed_time:.6f} seconds")
                             self.sequence_number = 1 - self.sequence_number  # Protocolo bit alternante como no livro, os numeros de sequência são apenas 0 e 1 no RDT3.0
-
+                
+                # TRetransmissão do pacote em caso de erro no pacote enviado
+                elif message.startswith(NACK_MESSAGE):
+                    nack_number = int(message[len(NACK_MESSAGE):])
+                    #print(f"NACK recebido para o pacote número de sequência {nack_number}. Retransmitindo o pacote...")
+                    if nack_number == self.sequence_number:
+                        self.retransmit_packet()
                 elif (
                     message == USER_CONNECTED_SUCCESSFULLY_MESSAGE
                     or USER_JOINED_THE_ROOM_MESSAGE in message
@@ -136,8 +158,7 @@ class Client:
                         self.message_serializer.remove_file(self.messages_receiver_file_name)
             
             except error:
-                ###ACREDITO QUE AQUI ENTRA O REENVIO DO PACOTE DEPOIS DA IMPLEMENTAÇÃO E VERIFICAÇÃO DO CHECKSUM CASO CONTER ERROS
-                print("[CLIENT] Erro ao receber mensagem")
+                pass
 
 '''
 Pelo menos até o momento, as linhas 63, 70, 92, 96 e 97 (pode ser que as alterações futuras 
@@ -148,5 +169,5 @@ leva para ser enviado e recebido.
 
 
 '''Como não esta implementado o reenvio do pacote, o temporizador expira e o pacote ainda chega ao servidor
-é preciso mudar essa logica
+é preciso mudar essa logica (ainda esta chegando com o reenvio)
 '''
