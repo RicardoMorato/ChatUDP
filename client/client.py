@@ -17,7 +17,9 @@ from common.constants import (
     ACK_MESSAGE
 )
 from message_serializer.serializer import MessageSerializer
-
+from checksum.checksum import *
+import json
+import base64
 class Client:
     def __init__(self, server_port: int, server_host: str = "localhost") -> None:
         self.server_address = (server_host, server_port)
@@ -46,7 +48,10 @@ class Client:
                 self.send_with_sequence(chunk)
 
             if not GREETING_MESSAGE in message:
-                self.socket.sendto(END_OF_MESSAGE_IDENTIFIER.encode(), self.server_address)
+                checksum = append_checksum(END_OF_MESSAGE_IDENTIFIER.encode())
+                data = {"message_with_checksum": base64.b64encode(checksum).decode()}
+                encoded_data = json.dumps(data).encode()
+                self.socket.sendto(encoded_data, self.server_address)
 
             self.message_serializer.remove_file(self.messages_file_name)
 
@@ -56,9 +61,13 @@ class Client:
 
     def send_with_sequence(self, chunk):  # Método para enviar a mensagem com o número de sequência
         with self.lock:
-            message_with_seq = f"SEQ{self.sequence_number}:{chunk}"
+            checksum = append_checksum(chunk.encode())
+            # Adiciona o checksum ao pacote
+            seq_num = self.sequence_number
             self.start_time = time.perf_counter()  #Inicia a contagem do tempo
-            self.socket.sendto(message_with_seq.encode(), self.server_address)
+            data = {"message_with_checksum": base64.b64encode(checksum).decode(), "seq_num": seq_num}
+            encoded_data = json.dumps(data).encode()
+            self.socket.sendto(encoded_data, self.server_address)
             self.start_timer()  #Inicia o temporizador
             #print(f"mandando pacote com numero de sequencia: {self.sequence_number}")
 
