@@ -14,7 +14,8 @@ from common.constants import (
     USER_CONNECTED_SUCCESSFULLY_MESSAGE,
     CLOSE_CLIENT_SOCKET_MESSAGE,
     USER_LEFT_THE_ROOM_MESSAGE,
-    ACK_MESSAGE
+    ACK_MESSAGE,
+    NACK_MESSAGE
 )
 import json #importar a biblioteca json para manipular uma biblioteca em bits
 import base64
@@ -24,6 +25,8 @@ class Server:
         self.clients = []
         self.socket = socket(AF_INET, SOCK_DGRAM)
         self.sequence_numbers = {}  #armazena o número de sequência do cliente
+        self.expected_sequence_numbers_soma = 0
+        self.sequence_numbers_soma = 0
         
     def start(self) -> None:
         self.socket.bind(self.address)
@@ -38,13 +41,26 @@ class Server:
             message_with_checksum = base64.b64decode(received_packet['message_with_checksum'])
             message, checksum = extract_data_and_checksum(message_with_checksum)
             is_checksum_valid = verify_checksum(message, checksum)
+            expected_seq_num = self.sequence_numbers.get(client_address, 0)
+            # Se o pacote chegar, vai sempre incrementar o número de sequência esperado, se não chegar, segue a logica de reenvio
+            if num_seq == 0:
+                self.expected_sequence_numbers_soma += 1 
+            else:
+                self.expected_sequence_numbers_soma += num_seq
+            #print(f"Valor atual: {self.expected_sequence_numbers_soma}")  
 
+            self.sequence_numbers_soma += 1
+            #print(f"Valor atual: {self.sequence_numbers_soma}")
+        
             if not is_checksum_valid:
+                self.socket.sendto(f"{NACK_MESSAGE}{num_seq}".encode(), client_address)
                 raise ValueError("Checksum inválido")
+            
+                  
             else:
             # Verifica se o número de sequencia esta correto
-                expected_seq_num = self.sequence_numbers.get(client_address, 0)
-                if num_seq == expected_seq_num or num_seq == (expected_seq_num + 1) % 2:
+                
+                if num_seq == expected_seq_num or self.sequence_numbers_soma == self.expected_sequence_numbers_soma:
                     # Atualiza o número de sequência esperado para o próximo pacote
                     self.sequence_numbers[client_address] = (expected_seq_num + 1) % 2
                     self.socket.sendto(f"{ACK_MESSAGE}{num_seq}".encode(), client_address) # Só manda o ACK para o cliente se o checksum for válido
