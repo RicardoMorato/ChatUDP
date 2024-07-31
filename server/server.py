@@ -1,12 +1,17 @@
 import sys
 import os
+import json
 from socket import *
 from typing import Any
 from datetime import datetime
 
 # Adicionando o diretório pai ao sys.path para nao ter erro de importação do modulo common
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
-from checksum.checksum import extract_data_and_checksum, verify_checksum
+from checksum.checksum import (
+    extract_data_and_checksum,
+    get_message_checksum,
+    verify_checksum,
+)
 from common.constants import (
     MESSAGE_CHUNK_SIZE,
     GREETING_MESSAGE,
@@ -17,8 +22,6 @@ from common.constants import (
     ACK_MESSAGE,
     NACK_MESSAGE,
 )
-import json  # importar a biblioteca json para manipular uma biblioteca em bits
-import base64
 
 
 class Server:
@@ -35,46 +38,49 @@ class Server:
         print("[SERVER] The server is ready to receive messages")
 
         while True:
-            pacote, client_address = self.socket.recvfrom(MESSAGE_CHUNK_SIZE)
+            packet, client_address = self.socket.recvfrom(MESSAGE_CHUNK_SIZE)
 
-            received_packet = json.loads(pacote.decode())
-            num_seq = received_packet.get("seq_num")
+            received_packet = json.loads(packet.decode())
 
-            message_with_checksum = base64.b64decode(
-                received_packet["message_with_checksum"]
-            )
-            message, checksum = extract_data_and_checksum(message_with_checksum)
-            is_checksum_valid = verify_checksum(message, checksum)
+            seq_num: int = received_packet.get("seq_num")
+            checksum: str = received_packet.get("checksum")
+            message: str = received_packet.get("message")
+
+            print("MESSAGE: ", received_packet)
+
+            is_checksum_valid = verify_checksum(message.encode(), checksum)
+
             expected_seq_num = self.sequence_numbers.get(client_address, 0)
-            # Se o pacote chegar, vai sempre incrementar o número de sequência esperado, se não chegar, segue a logica de reenvio
-            if num_seq == 0:
-                self.expected_sequence_numbers_soma += 1
-            else:
-                self.expected_sequence_numbers_soma += num_seq
-            # print(f"Valor atual: {self.expected_sequence_numbers_soma}")
+            is_seq_num_valid = expected_seq_num == seq_num
 
-            self.sequence_numbers_soma += 1
-            # print(f"Valor atual: {self.sequence_numbers_soma}")
+            data = {
+                "checksum": get_message_checksum(ACK_MESSAGE.encode()),
+                "seq_num": expected_seq_num,
+                "message": ACK_MESSAGE,
+            }
 
             if not is_checksum_valid:
-                self.socket.sendto(f"{NACK_MESSAGE}{num_seq}".encode(), client_address)
-                raise ValueError("Checksum inválido")
+                print(
+                    f"[SERVER] Client with address {client_address} has sent a packet with an invalid checksum."
+                )
+                # ENVIA NACK
+                self.socket.sendto(json.dumps(data).encode(), client_address)
+                continue
 
-            else:
-                # Verifica se o número de sequencia esta correto
+            if not is_seq_num_valid:
+                print(
+                    f"[SERVER] Client with address {client_address} has sent a packet with an invalid seq number."
+                )
+                # ENVIA NACK
+                self.socket.sendto(json.dumps(data).encode(), client_address)
+                continue
 
-                if (
-                    num_seq == expected_seq_num
-                    or self.sequence_numbers_soma == self.expected_sequence_numbers_soma
-                ):
-                    # Atualiza o número de sequência esperado para o próximo pacote
-                    self.sequence_numbers[client_address] = (expected_seq_num + 1) % 2
-                    self.socket.sendto(
-                        f"{ACK_MESSAGE}{num_seq}".encode(), client_address
-                    )  # Só manda o ACK para o cliente se o checksum for válido
-                    self.process_message(message.decode(), client_address)
-                else:
-                    print("Pacote fora de ordem.")
+            # Atualiza o número de sequência esperado para o próximo pacote
+            self.sequence_numbers[client_address] = (expected_seq_num + 1) % 2
+
+            self.socket.sendto(json.dumps(data).encode(), client_address)
+
+            self.process_message(message, client_address)
 
     def process_message(self, message_chunk: str, client_address) -> None:
         # Usuário mandou a mensagem de saudação

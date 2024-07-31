@@ -48,6 +48,12 @@ def append_checksum(message: bytes) -> bytes:
     return message + checksum_bytes
 
 
+def get_message_checksum(message: bytes) -> str:
+    checksum = find_checksum(message)
+
+    return checksum
+
+
 def extract_data_and_checksum(message_with_checksum):
     if len(message_with_checksum) < 2:
         raise ValueError(
