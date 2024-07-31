@@ -1,52 +1,118 @@
 import threading
 import sys
 import os
-import time
-from socket import *
+import socket
+import json
 
 # Adicionando o diretório pai ao sys.path para nao ter erro de importação do modulo common
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 from common.constants import (
     CLOSE_CLIENT_SOCKET_MESSAGE,
-    END_OF_MESSAGE_IDENTIFIER,
-    GREETING_MESSAGE,
     MESSAGE_CHUNK_SIZE,
+    MESSAGE_CHUNK_SIZE_WITH_HEADERS,
     USER_CONNECTED_SUCCESSFULLY_MESSAGE,
     USER_JOINED_THE_ROOM_MESSAGE,
     USER_LEFT_THE_ROOM_MESSAGE,
-    ACK_MESSAGE
 )
 from message_serializer.serializer import MessageSerializer
+from checksum.checksum import *
+
 
 class Client:
     def __init__(self, server_port: int, server_host: str = "localhost") -> None:
         self.server_address = (server_host, server_port)
-        self.socket = socket(AF_INET, SOCK_DGRAM)
+        self.timeout = 1  # Timeout em segundos
+
+        self.socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        self.socket.setblocking(False)  # Vamos lidar com sockets não-bloqueantes
+
         host, port = self.socket.getsockname()
         self.messages_file_name = f"{host}-{port}"
         self.messages_receiver_file_name = f"{self.messages_file_name}-receiver"
         self.message_serializer = MessageSerializer(chunk_size=MESSAGE_CHUNK_SIZE)
         self.sequence_number = 0
         self.lock = threading.Lock()
-        self.acks_received = {}  #ACKs recebidos
-        self.timeout = 0.00001  #Timeout em segundos
         self.timer = None  # Temporizador
-        self.start_time = None
+        self.current_packet = None  # Pacote a ser reenviado
 
     def start(self) -> None:
-        thread = threading.Thread(daemon=True, target=self.listen)
+        pause_event = threading.Event()
+        pause_event.clear()  # Red light for the listen thread
+
+        thread = threading.Thread(daemon=True, target=self.listen, args=(pause_event,))
         thread.start()
 
         while True:
             message = input("")
-            file_path = self.message_serializer.build_messages_file(file_name=self.messages_file_name, message=message)
-            chunked_message = self.message_serializer.parse_file_into_message_stream(file_path)
+            pause_event.clear()  # Red light for the listen thread
 
-            for chunk in chunked_message:
-                self.send_with_sequence(chunk)
+            file_path = self.message_serializer.build_messages_file(
+                file_name=self.messages_file_name, message=message
+            )
 
-            if not GREETING_MESSAGE in message:
-                self.socket.sendto(END_OF_MESSAGE_IDENTIFIER.encode(), self.server_address)
+            with open(file_path, "rb") as file:
+                chunk_content = file.read(MESSAGE_CHUNK_SIZE)
+
+                # Adiciona o checksum ao pacote
+                checksum = get_message_checksum(chunk_content)
+
+                seq_num = self.sequence_number
+
+                data = {
+                    "checksum": checksum,
+                    "seq_num": seq_num,
+                    "message": chunk_content.decode("utf-8"),
+                }
+
+                self.current_packet = json.dumps(data).encode()
+                self.start_timer()  # Inicia o temporizador
+                self.socket.sendto(self.current_packet, self.server_address)
+
+                while True:
+                    try:
+                        packet = self.socket.recv(MESSAGE_CHUNK_SIZE)
+                    except BlockingIOError:
+                        """
+                        Esse erro acontece quando o socket tenta realizar uma ação bloqueante.
+                        Como configurado na linha 33, queremos que esse socket seja não-bloqueante.
+
+                        Para mais informações, checar os links abaixo:
+                        - https://stackoverflow.com/questions/63494625/python-are-sockets-and-recv-blocking-by-default
+                        - https://stackoverflow.com/questions/7174927/when-does-socket-recvrecv-size-return
+                        - https://stackoverflow.com/questions/25426447/creating-non-blocking-socket-in-python
+                        - https://stackoverflow.com/questions/16745409/what-does-pythons-socket-recv-return-for-non-blocking-sockets-if-no-data-is-r
+                        """
+                        continue
+
+                    received_packet = json.loads(packet.decode())
+
+                    received_seq_num: int = received_packet.get("seq_num")
+                    received_checksum: str = received_packet.get("checksum")
+                    received_message: str = received_packet.get("message")
+
+                    is_checksum_valid = verify_checksum(
+                        received_message.encode(), received_checksum
+                    )
+
+                    if (
+                        not is_checksum_valid
+                        or received_seq_num != self.sequence_number
+                    ):
+                        """
+                        Não precisamos fazer nada, apenas esperar o temporizador terminar.
+                        Uma vez que o temporizador termine e o ACK ainda não tenha sido recebido,
+                        o próprio temporizador ficará encarregado de re-enviar o pacote
+                        """
+                        continue
+
+                    self.sequence_number = (received_seq_num + 1) % 2
+
+                    if self.timer is not None:
+                        self.timer.cancel()  # Para o temporizador
+
+                    break
+
+            pause_event.set()
 
             self.message_serializer.remove_file(self.messages_file_name)
 
@@ -54,23 +120,29 @@ class Client:
                 self.stop()
                 break
 
-    def send_with_sequence(self, chunk):  # Método para enviar a mensagem com o número de sequência
-        with self.lock:
-            message_with_seq = f"SEQ{self.sequence_number}:{chunk}"
-            self.start_time = time.perf_counter()  #Inicia a contagem do tempo
-            self.socket.sendto(message_with_seq.encode(), self.server_address)
-            self.start_timer()  #Inicia o temporizador
-            #print(f"mandando pacote com numero de sequencia: {self.sequence_number}")
-
     def start_timer(self):
         if self.timer is not None:
             self.timer.cancel()
-        self.timer = threading.Timer(self.timeout, self.timer_expired)
-        self.timer.start()
-        #print(f"temporizador iniciado para o numero de sequencia: {self.sequence_number}")
+
+        self.timer_thread = threading.Timer(self.timeout, self.timer_expired)
+        self.timer_thread.start()
 
     def timer_expired(self):
-        print(f"temporizador expirado para o numero de sequencia:{self.sequence_number}")
+        self.retransmit_packet()
+
+    def retransmit_packet(self):
+        # Usando o lock para garantir que a thread vai ter acesso às informações
+        with self.lock:
+            if self.current_packet:
+                decoded_current_packet = json.loads(self.current_packet)
+
+                is_packet_delayed = (
+                    self.sequence_number == decoded_current_packet["seq_num"]
+                )
+
+                if is_packet_delayed:
+                    self.socket.sendto(self.current_packet, self.server_address)
+                    self.start_timer()
 
     def stop(self) -> None:
         print("[CLIENT] Closing socket connection")
@@ -78,58 +150,34 @@ class Client:
             self.timer.cancel()
         self.socket.close()
 
-    def listen(self) -> None:
+    def listen(self, pause_event: threading.Event) -> None:
         while True:
-            try:
-                received_message, _ = self.socket.recvfrom(MESSAGE_CHUNK_SIZE)
-                message = received_message.decode()
-                
-                if message.startswith(ACK_MESSAGE):
-                    ack_number = int(message[len(ACK_MESSAGE):])
-                    with self.lock:  #serve pra garantir que o acesso ao dicionário self.acks_received seja seguro, vi em algum fórum
-                        self.acks_received[ack_number] = True  #Marca o número de sequência ack_number como "recebido" no dicionario
-                        if ack_number == self.sequence_number:
-                            #print(f"ack {ack_number} recebido")
-                            if self.timer is not None:
-                                self.timer.cancel()  # Para o temporizador
-                                elapsed_time = time.perf_counter() - self.start_time
-                                #print(f"encerrando timer para o numero de sequencia: {ack_number}")
-                                #print(f"tempo: {elapsed_time:.6f} seconds")
-                            self.sequence_number = 1 - self.sequence_number  # Protocolo bit alternante como no livro, os numeros de sequência são apenas 0 e 1 no RDT3.0
+            if pause_event.is_set():
+                try:
+                    packet = self.socket.recv(MESSAGE_CHUNK_SIZE_WITH_HEADERS)
 
-                elif (
-                    message == USER_CONNECTED_SUCCESSFULLY_MESSAGE
-                    or USER_JOINED_THE_ROOM_MESSAGE in message
-                    or USER_LEFT_THE_ROOM_MESSAGE in message
-                ):
-                    print(f"\n{message}")
-                
-                else:
-                    message_text, host, timestamp = (
-                        self.message_serializer.extract_parts_of_received_message(message)
-                    )
-                    if message_text != END_OF_MESSAGE_IDENTIFIER:
-                        file_path = self.message_serializer.build_messages_file(
-                            file_name=self.messages_receiver_file_name,
-                            message=message_text,
-                        )
+                    received_packet = json.loads(packet.decode())
+
+                    message: str = received_packet.get("message")
+                    time: str = received_packet.get("time")
+                    sender_info: str = received_packet.get("sender_info")
+
+                    if (
+                        message == USER_CONNECTED_SUCCESSFULLY_MESSAGE
+                        or USER_JOINED_THE_ROOM_MESSAGE in message
+                        or USER_LEFT_THE_ROOM_MESSAGE in message
+                    ):
+                        print(f"\n{message}\n")
                     else:
-                        text = self.message_serializer.read_all_content_from_file(file_path)
-                        print(f"\n{host}: {text} {timestamp}")
-                        self.message_serializer.remove_file(self.messages_receiver_file_name)
-            
-            except error:
-                ###ACREDITO QUE AQUI ENTRA O REENVIO DO PACOTE DEPOIS DA IMPLEMENTAÇÃO E VERIFICAÇÃO DO CHECKSUM CASO CONTER ERROS
-                print("[CLIENT] Erro ao receber mensagem")
-
-'''
-Pelo menos até o momento, as linhas 63, 70, 92, 96 e 97 (pode ser que as alterações futuras 
-desça as linhas de codigo) tem prints que mostram
-a ordem de saída e entrada de cada pacote, e o tempo que cada pacote
-leva para ser enviado e recebido.
-'''
-
-
-'''Como não esta implementado o reenvio do pacote, o temporizador expira e o pacote ainda chega ao servidor
-é preciso mudar essa logica
-'''
+                        print(f"\n{sender_info}: {message} {time}\n")
+                except BlockingIOError:
+                    """
+                    Ver explicação da linha 76 para mais detalhes
+                    """
+                    continue
+                except OSError:
+                    """
+                    Isso não deveria acontecer, mas, como estamos lidando com threads,
+                    é melhor prevenir do que remediar
+                    """
+                    continue
