@@ -8,7 +8,6 @@ from datetime import datetime
 # Adicionando o diretório pai ao sys.path para nao ter erro de importação do modulo common
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 from checksum.checksum import (
-    extract_data_and_checksum,
     get_message_checksum,
     verify_checksum,
 )
@@ -20,7 +19,6 @@ from common.constants import (
     CLOSE_CLIENT_SOCKET_MESSAGE,
     USER_LEFT_THE_ROOM_MESSAGE,
     ACK_MESSAGE,
-    NACK_MESSAGE,
 )
 
 
@@ -40,7 +38,7 @@ class Server:
         while True:
             packet, client_address = self.socket.recvfrom(MESSAGE_CHUNK_SIZE)
 
-            received_packet = json.loads(packet.decode())
+            received_packet: dict[str, str] = json.loads(packet)
 
             seq_num: int = received_packet.get("seq_num")
             checksum: str = received_packet.get("checksum")
