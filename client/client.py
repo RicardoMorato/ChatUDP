@@ -75,10 +75,10 @@ class Client:
 
                 while True:
                     try:
-                        packet = self.socket.recv(1024)
+                        packet = self.socket.recv(MESSAGE_CHUNK_SIZE)
                     except BlockingIOError:
                         """
-                        Esse erro
+                        TODO: DOCUMENTAR ESSE ERRO
                         """
                         continue
 
@@ -145,8 +145,15 @@ class Client:
         while True:
             if pause_event.is_set():
                 try:
-                    received_message = self.socket.recv(MESSAGE_CHUNK_SIZE)
-                    message = received_message.decode()
+                    packet = self.socket.recv(MESSAGE_CHUNK_SIZE)
+
+                    print("RECEIVED: ", packet)
+
+                    received_packet = json.loads(packet.decode())
+
+                    message: str = received_packet.get("message")
+                    time: str = received_packet.get("time")
+                    sender_info: str = received_packet.get("sender_info")
 
                     if (
                         message == USER_CONNECTED_SUCCESSFULLY_MESSAGE
@@ -155,40 +162,6 @@ class Client:
                     ):
                         print(f"\n{message}")
                     else:
-                        print(message)
-
-                    # else:
-                    #     message_text, host, timestamp = (
-                    #         self.message_serializer.extract_parts_of_received_message(
-                    #             message
-                    #         )
-                    #     )
-                    #     if message_text != END_OF_MESSAGE_IDENTIFIER:
-                    #         file_path = self.message_serializer.build_messages_file(
-                    #             file_name=self.messages_receiver_file_name,
-                    #             message=message_text,
-                    #         )
-                    #     else:
-                    #         text = self.message_serializer.read_all_content_from_file(
-                    #             file_path
-                    #         )
-                    #         print(f"\n{host}: {text} {timestamp}")
-                    #         self.message_serializer.remove_file(
-                    #             self.messages_receiver_file_name
-                    #         )
+                        print(f"\n{sender_info}: {message} {time}")
                 except BlockingIOError:
-                    # print("DID NOT BLOCK I/O")
                     continue
-
-
-"""
-Pelo menos até o momento, as linhas 63, 70, 92, 96 e 97 (pode ser que as alterações futuras 
-desça as linhas de codigo) tem prints que mostram
-a ordem de saída e entrada de cada pacote, e o tempo que cada pacote
-leva para ser enviado e recebido.
-"""
-
-
-"""Como não esta implementado o reenvio do pacote, o temporizador expira e o pacote ainda chega ao servidor
-é preciso mudar essa logica (ainda esta chegando com o reenvio)
-"""

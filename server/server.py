@@ -46,8 +46,6 @@ class Server:
             checksum: str = received_packet.get("checksum")
             message: str = received_packet.get("message")
 
-            print("MESSAGE: ", received_packet)
-
             is_checksum_valid = verify_checksum(message.encode(), checksum)
 
             expected_seq_num = self.sequence_numbers.get(client_address, 0)
@@ -82,50 +80,83 @@ class Server:
 
             self.process_message(message, client_address)
 
-    def process_message(self, message_chunk: str, client_address) -> None:
+    def process_message(self, message_to_send: str, client_address) -> None:
         # Usuário mandou a mensagem de saudação
-        is_greeting_message = message_chunk.startswith(GREETING_MESSAGE)
+        is_greeting_message = message_to_send.startswith(GREETING_MESSAGE)
         is_client_connected = self.is_client_already_connected(client_address)
 
         if is_greeting_message and not is_client_connected:
-            client_name = message_chunk.split(GREETING_MESSAGE)[1]
+            client_name = message_to_send.split(GREETING_MESSAGE)[1]
             client = {"address": client_address, "name": client_name}
             self.clients.append(client)
+
+            message_metadata = self.get_message_metadata(client)
+
+            encapsulated_message = {
+                "message": USER_CONNECTED_SUCCESSFULLY_MESSAGE,
+                **message_metadata,
+            }
+
             self.socket.sendto(
-                USER_CONNECTED_SUCCESSFULLY_MESSAGE.encode(), client_address
+                json.dumps(encapsulated_message).encode(), client_address
             )
+
             # Enviando mensagem "Fulano entrou na sala"
             client_joined_message = client_name + USER_JOINED_THE_ROOM_MESSAGE
-            self.broadcast(client_address, client_joined_message)
+
+            encapsulated_message["message"] = client_joined_message
+            self.broadcast(client_address, encapsulated_message)
+
             print(f"[SERVER] Client was added to the clients list: {client}")
             print(f"[SERVER] Current clients list: {self.clients}")
         elif is_client_connected:
-            if message_chunk == CLOSE_CLIENT_SOCKET_MESSAGE:
+            if message_to_send == CLOSE_CLIENT_SOCKET_MESSAGE:
                 self.remove_client(client_address)
             else:
                 print(
-                    f"[SERVER] Received the following chunk from client {client_address}: {message_chunk}. "
+                    f"[SERVER] Received the following chunk from client {client_address}: "
+                    f"{message_to_send}. "
                     "And will broadcast to the others"
                 )
                 print(f"[SERVER] Current clients list: {self.clients}")
                 message_sender = self.find_connected_client(client_address)
-                messages = self.get_formatted_message(message_sender, message_chunk)
-                for message in messages:
-                    self.broadcast(message_sender["address"], message)
+
+                message_metadata = self.get_message_metadata(message_sender)
+
+                encapsulated_message = {
+                    "message": message_to_send,
+                    **message_metadata,
+                }
+
+                self.broadcast(message_sender["address"], encapsulated_message)
 
     def remove_client(self, client_address) -> None:
         client = self.find_connected_client(client_address)
         if client:
             self.clients.remove(client)
             notification = f"{client['name']}" + USER_LEFT_THE_ROOM_MESSAGE
-            self.broadcast(client_address, notification)
+
+            message_metadata = self.get_message_metadata(client)
+
+            encapsulated_message = {"message": notification, **message_metadata}
+
+            self.broadcast(client_address, encapsulated_message)
             print(f"[SERVER] Client {client} has left the chat.")
             print(f"[SERVER] Current clients list: {self.clients}")
 
-    def broadcast(self, sender_address, message_to_broadcast: str = "") -> None:
+    def broadcast(
+        self,
+        sender_address,
+        data: dict[str, str] = {},
+    ) -> None:
         for client in self.clients:
             if client["address"] != sender_address:
-                self.socket.sendto(message_to_broadcast.encode(), client["address"])
+                print(
+                    f"[SERVER] Broadcasting the following message and headers: ",
+                    data,
+                )
+
+                self.socket.sendto(json.dumps(data).encode(), client["address"])
 
     def find_connected_client(self, client_address) -> dict[str, Any]:
         for client in self.clients:
@@ -138,47 +169,19 @@ class Server:
                 return True
         return False
 
-    def get_formatted_message(
-        self, message_sender: dict[str, Any], message_chunk: str
-    ) -> list[str]:
+    def get_message_metadata(self, message_sender: dict[str, Any]) -> dict[str, str]:
         sender_host, sender_port = message_sender["address"]
         sender_name = message_sender["name"]
         formatted_date = self.get_formatted_date_string()
-        formatted_message = f"{sender_host}:{sender_port}/~{sender_name}: {message_chunk} {formatted_date}"
 
-        if len(formatted_message) > MESSAGE_CHUNK_SIZE:
-            """
-            Se entrarmos nessa condição, significa que a mensagem formatada (host + message_chunk + timestamp)
-            é maior do que o chunk_size pré-determinado enviado pelo socket.
-            Portanto, precisamos dividir a o message_chunk em chunks menores que respeitem o MESSAGE_CHUNK_SIZE.
-            """
-            messages = []
-            formatted_message_default_length = len(
-                f"{sender_host}:{sender_port}/~{sender_name}:  {formatted_date}"
-            )
-            message_max_size = MESSAGE_CHUNK_SIZE - formatted_message_default_length - 3
-            chunks = [
-                message_chunk[i : i + message_max_size]
-                for i in range(0, len(message_chunk), message_max_size)
-            ]
-            for chunk in chunks:
-                messages.append(
-                    f"{sender_host}:{sender_port}/~{sender_name}: {chunk} {formatted_date}"
-                )
-            return messages
-        return [formatted_message]
+        metadata = {
+            "time": formatted_date,
+            "sender_info": f"{sender_host}:{sender_port}/~{sender_name}",
+        }
+
+        return metadata
 
     def get_formatted_date_string(self) -> str:
         current_date = datetime.now()
         formatted_date = current_date.strftime("%H:%M:%S %d/%m/%Y")
         return formatted_date
-
-
-"""
-    def parse_message_with_seq(self, message):
-        # analisar o número de sequência
-        if message.startswith("SEQ"):
-            seq_num, msg = message[3:].split(":", 1)
-            return int(seq_num), msg
-        return -1, message  # O padrão é -1 se o número de sequência não tiver presente
-"""
