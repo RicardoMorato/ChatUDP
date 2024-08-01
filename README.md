@@ -1,8 +1,11 @@
 # Chat UDP
+## <div align="center"> Demonstração do Projeto</div>
 
-## Demonstração do Projeto
-
-[![Vídeo de Demonstração](https://img.youtube.com/vi/-Kuva1jW7y4/0.jpg)](https://www.youtube.com/watch?v=-Kuva1jW7y4)
+<div align="center">
+        <a href="https://www.youtube.com/watch?v=-Kuva1jW7y4">
+            <img src="https://img.youtube.com/vi/-Kuva1jW7y4/0.jpg" alt="Vídeo de Demonstração">
+        </a>
+    </div>
 
 ## Sumário
 
